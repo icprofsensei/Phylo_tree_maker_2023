@@ -1,6 +1,24 @@
 import PySimpleGUI as sg
 import childnodes as C
 import Treebuilder as T
+layout2 = [[sg.Text('Type YES to produce a phylogenetic tree of entities.')],
+[sg.Text('Section Title', size = (15,1)), sg.InputText()], [sg.Submit(), sg.Cancel()]]
+window2 = sg.Window('Data Entry', layout2)
+event, values2 = window2.read()
+window2.close()
+layout3 = [[sg.Text('Type YES to completely update the existing node descendent file - childnodes.txt (if answered YES previously, else click OK)')],
+[sg.Text('Section Title', size = (15,1)), sg.InputText()], [sg.Submit(), sg.Cancel()]]
+window3 = sg.Window('Data Entry', layout3)
+event, values3 = window3.read()
+window3.close()
+cnodesdir = sg.popup_get_file("Location of existing childnodes.txt file")
+sg.popup('You entered', cnodesdir)
+layout4 = [[sg.Text('Enter the NCBI REST API key associated with your account')],
+[sg.Text('Section Title', size = (15,1)), sg.InputText()], [sg.Submit(), sg.Cancel()]]
+window4 = sg.Window('Data Entry', layout4)
+event, values4 = window4.read()
+window4.close()
+
 if type(values2) == dict:
                  
                 values2 = str(values2[0])
@@ -25,13 +43,10 @@ if values2 == 'YES':
         print('Check complete. Constructing trees.')
         result3 = T(ids, outputfiles, cnodesdir, inputfiles)
         result3.Maker()
-'''
-# ann(tax dictionary, input directory, output directory, count, section, casesens)
-#result = ann('NCBI_tax_dictionary8.json', 'testset', 'results', 0, 'ALL', 'NO')
-#result.initialsteps()
-# C(childnodesdir, ids found text file, ncbiapikey)
-#result2 = C('childnodes.txt', 'results/ALLAnnotated_output_2023-09-22_17-01-00/ids.txt', 'f55726c2c32772c2b82304814b30148aff07')
-#result2.updatenewspec()
-# T( ids found text file, output directory, childnodesdir, input directory)
+
+C(childnodesdir, ids found text file, ncbiapikey)
+result2 = C('childnodes.txt', 'results/ALLAnnotated_output_2023-09-22_17-01-00/ids.txt', 'f55726c2c32772c2b82304814b30148aff07')
+result2.updatenewspec()
+T( ids found text file, output directory, childnodesdir, input directory)
 result3 = T('Testset4/ids2.txt', 'results4', 'childnodes.txt', 'Testset4')
 result3.Maker()
