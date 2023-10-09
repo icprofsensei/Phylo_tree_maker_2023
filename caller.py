@@ -1,6 +1,6 @@
 import PySimpleGUI as sg
-import childnodes as C
-import Treebuilder as T
+from tree_builder import TreeMaker as T
+from childnodes import Childnodes as C
 layout2 = [[sg.Text('Type YES to produce a phylogenetic tree of entities.')],
 [sg.Text('Section Title', size = (15,1)), sg.InputText()], [sg.Submit(), sg.Cancel()]]
 window2 = sg.Window('Data Entry', layout2)
