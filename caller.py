@@ -1,6 +1,7 @@
 import PySimpleGUI as sg
 from tree_builder import TreeMaker as T
 from childnodes import Childnodes as C
+'''
 layout2 = [[sg.Text('Type YES to produce a phylogenetic tree of entities.')],
 [sg.Text('Section Title', size = (15,1)), sg.InputText()], [sg.Submit(), sg.Cancel()]]
 window2 = sg.Window('Data Entry', layout2)
@@ -40,13 +41,23 @@ if values2 == 'YES':
         print('Checking if any new species need to be added')
         result2 = C(cnodesdir, ids, values4)
         result2.updatenewspec()
+        
+        layout5 = [[sg.Text('Enter the tree title')],
+        [sg.Text('Section Title', size = (15,1)), sg.InputText()], [sg.Submit(), sg.Cancel()]]
+        window5 = sg.Window('Data Entry', layout5)
+        event, values5 = window5.read()
+        window5.close()
+        outputdir = sg.popup_get_file("Location of existing childnodes.txt file")
+        sg.popup('You entered', cnodesdir)
+        if type(values5) == dict:
+                 
+                values5 = str(values5[0])
+        result3 = T(ids, outputdir, cnodesdir, values5)
         print('Check complete. Constructing trees.')
-        result3 = T(ids, outputfiles, cnodesdir, inputfiles)
         result3.Maker()
+'''
+#C(childnodesdir, ids found text file, ncbiapikey)
 
-C(childnodesdir, ids found text file, ncbiapikey)
-result2 = C('childnodes.txt', 'results/ALLAnnotated_output_2023-09-22_17-01-00/ids.txt', 'f55726c2c32772c2b82304814b30148aff07')
-result2.updatenewspec()
-T( ids found text file, output directory, childnodesdir, input directory)
-result3 = T('Testset4/ids2.txt', 'results4', 'childnodes.txt', 'Testset4')
+#T(ids found text file, output directory, childnodesdir, title)
+result3 = T('Testset4/ids2.txt', 'results', 'childnodes.txt', 'Testset4')
 result3.Maker()
