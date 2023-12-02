@@ -1,4 +1,4 @@
-from ete3 import TreeStyle, RectFace, faces
+from ete3 import TreeStyle, RectFace, faces, Tree, NodeStyle
 from ete3 import NCBITaxa
 
 from Bio import Phylo
@@ -26,13 +26,11 @@ class TreeMaker:
                 for itf in listtobeprocessed:
                         for i in ncbi.get_lineage(itf):
                                 allitems.append(str(i))
-                                #print(ncbi.get_lineage(itf))
                 allitems = list(dict.fromkeys(allitems))
                 return allitems
         def colourselecter(self, colourdict):
                 allitems = self.listmaker(self.items_to_find, [])
                 iddict=dict.fromkeys(allitems,0)
-                #print(iddict)
                 ncbi = NCBITaxa()
                 with open (self.cnodesdir ,encoding = 'utf-8') as cn:
                         text = cn.readlines()
@@ -46,28 +44,21 @@ class TreeMaker:
                                 key = item[0]
                                 value = item[1]
                                 childnodedict[key] = value
-                #print(childnodedict)
                 for itf in self.items_to_find:
                         reversedls = ncbi.get_lineage(itf)[::-1]
-                        #print(reversedls)
                         factor = 1
                         for index, i in enumerate(reversedls):
-                                        #print(i)
                                         if index == 0:
-                                                #print("Factor:", 1)
                                                 iddict[str(i)] += 1 
                                         elif str(i) in childnodedict.keys():
 
                                                         newfactor = int(childnodedict[str(i)])
                                                         factor = factor / newfactor
-                                                        #print("Factor:", factor)
                                                         iddict[str(i)] += factor
                                         else:
                                                         iddict[str(i)] += factor 
                 total = max(iddict.values())
                 
-                #print(total)
-                #print(iddict)
                 viridis = ['#fde725',
 '#f8e621',
 '#f1e51d',
@@ -170,18 +161,32 @@ class TreeMaker:
 '#440154']
                 reverseviridis = viridis[::-1]
                 heavy = []
-                for key, value in iddict.items():
-                        if value > 1: 
+                for key in iddict.keys():
+                        rankdict = ncbi.get_rank([key]) 
+                        if 'species' in rankdict.values() and iddict[key] > 1.5 :
                                 heavy.append(key)
+                        elif 'subspecies' in rankdict.values() and iddict[key]>1.4:
+                                heavy.append(key)
+                        elif 'genus' in rankdict.values() and iddict[key]>2.5:
+                                heavy.append(key)
+                        elif 'family' in rankdict.values() and iddict[key]>3:
+                                heavy.append(key)
+                        elif 'kingdom' in rankdict.values():
+                                heavy.append(key)
+                        elif iddict[key]> 0.7*total:
+                                heavy.append(key)       
+                        
+                for key,value in iddict.items():
                         placeindex = (value / total) * 100
                         placeindex = math.ceil(placeindex)
                         colourdict[key] = reverseviridis[placeindex - 1]
 
-                delivery = [colourdict, total, heavy]
+                delivery = [colourdict, total, heavy, iddict]
                 return(delivery) 
                                         
 
         def layoutfunc(self, node):
+                  ncbi = NCBITaxa()
                   node.complete_branch_lines_when_necessary = False
                   node.optimal_scale_level = "full"
                   node.guiding_lines_type = 0
@@ -189,6 +194,7 @@ class TreeMaker:
                   delivery = self.colourselecter({})
                   colourdict = delivery[0]
                   tblabelled = delivery[2]
+                  tblabellednames = ncbi.get_taxid_translator(tblabelled)
                   node.img_style["hz_line_type"] = 0
                   if node.get_children() == [] or node.name not in colourdict.keys():
                           node.img_style["hz_line_color"] = "#ffffff"
@@ -196,14 +202,11 @@ class TreeMaker:
                   
                   
                   if node.name in colourdict.keys():
-                        #node.img_style["size"] = 0.1
-                        #node.img_style["shape"] = "circle"
                         node.img_style["fgcolor"] = colourdict[str(node.name)]
                         node.img_style["vt_line_color"] = colourdict[str(node.name)]
                         node.img_style["hz_line_color"] = colourdict[str(node.name)]
                         node.img_style["vt_line_width"] = 5
                         node.img_style["hz_line_width"] = 5
-                        #faces.add_face_to_node(AttrFace("name", fsize = 25), node, column=0)
                         if node.get_children == []:
                                 for i in node.get_children():
                                         if i in colourdict.keys():
@@ -211,7 +214,8 @@ class TreeMaker:
                                         else:
                                                 nohorline == True
                         if node.name in tblabelled:
-                                faces.add_face_to_node(RectFace(4, 4, fgcolor = colourdict[str(node.name)], bgcolor= 'black', label = {'text': node.name , 'font': 'arial', 'fontsize' : 10}), node, column = 0, position = "branch-bottom")      
+                                #print(tblabellednames[int(node.name)])
+                                faces.add_face_to_node(RectFace(0.1, 0.1, fgcolor = "000000", bgcolor= "000000", label = {'text': tblabellednames[int(node.name)] , 'font': 'arial', 'fontsize' : 25}), node, column = 1, position = "float")      
                   else: 
                         
                         node.img_style["size"] = 0
@@ -231,7 +235,7 @@ class TreeMaker:
         def Maker(self):     
                                 
                                      with open(self.cnodesdir,encoding = 'utf-8') as fp:
-                                                      os.mkdir(self.directorypath + "/trees")
+                                                      
                                                       text = fp.readlines()
                                                       topologyfeeder = []
                                                       for i in text:
@@ -243,21 +247,24 @@ class TreeMaker:
                                                       ncbi = NCBITaxa()
                                                       
                                                       tree = ncbi.get_topology(topologyfeeder, intermediate_nodes=True)
-                                                      
-                                                      
+                                                      tree.annotate_ncbi_taxa()
                                                       #print(tree.get_ascii(attributes=["sci_name", "rank"]))
                                                       ts = TreeStyle()
+                                                     
                                                       ts.show_leaf_name = False
                                                       ts.mode = "c"
                                                       ts.root_opening_factor = 0
                                                       ts.arc_start = -180 # 0 degrees = 3 o'clock
                                                       ts.arc_span = 360
-                                                      #ts.branch_vertical_margin = 0.5
-                                                      
-                                                      #ts.min_leaf_separation = 6
                                                       ts.layout_fn = self.layoutfunc
-
+                                                      alltaxaintext = self.colourselecter({})[3]
+                                                      table = ""
+                                                      for key, value in alltaxaintext.items():
+                                                              val = str(round(value, 2))
+                                                              table += "Taxa " + key + " " + "Weighting " + val + "\n"
+                                                      print(table)
                                                       tree.show(tree_style=ts)
+                                                      os.mkdir(self.directorypath + "/trees")
                                                       tree.write(format = 0, outfile = self.directorypath + "/trees/new_tree.nwk")
                                                       tree.render(self.directorypath + "/trees/img_tree.svg", w= 3600, units = 'px', tree_style = ts)
                                                       Phylo.convert(self.directorypath + "/trees/new_tree.nwk", "newick", self.directorypath + "/trees/new_tree.xml", "nexml")
@@ -278,6 +285,7 @@ class TreeMaker:
                                                       font = ImageFont.truetype("arial", 50)
                                                       font2 = ImageFont.truetype("arial", 70)
                                                       draw.text((600, 150), "Weighted total=  " + str(total), (0, 0, 0), font = font)
+                                                      
                                                       img.save(self.directorypath + "/trees/tree+bar.png")
                                                       draw.text((2500, 150), "Phylogenetic Tree based on the named entities in the folder: "  + self.treetitle, (0, 0, 0), font = font2)
                                                       img.save(self.directorypath + "/trees/tree+bar.png")
