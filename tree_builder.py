@@ -163,15 +163,21 @@ class TreeMaker:
                 heavy = []
                 for key in iddict.keys():
                         rankdict = ncbi.get_rank([key]) 
-                        if 'species' in rankdict.values() and iddict[key] > 1.5 :
+                        if 'species' in rankdict.values() and iddict[key] > 2.5 :
+                                length = len(ncbi.get_lineage(key))
+                                parent = ncbi.get_lineage(key)[length - 2]
+                                if parent in heavy:
+                                        heavy.remove(parent)
+                                        heavy.append(key)
+                        elif 'subspecies' in rankdict.values() and iddict[key]>2:
                                 heavy.append(key)
-                        elif 'subspecies' in rankdict.values() and iddict[key]>1.4:
+                        elif 'genus' in rankdict.values() and iddict[key]>4:
                                 heavy.append(key)
-                        elif 'genus' in rankdict.values() and iddict[key]>2.5:
-                                heavy.append(key)
-                        elif 'family' in rankdict.values() and iddict[key]>3:
+                        elif 'family' in rankdict.values() and iddict[key]>5:
                                 heavy.append(key)
                         elif 'kingdom' in rankdict.values():
+                                heavy.append(key)
+                        elif 'domain' in rankdict.values():
                                 heavy.append(key)
                         elif iddict[key]> 0.7*total:
                                 heavy.append(key)       

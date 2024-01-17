@@ -59,5 +59,5 @@ if values2 == 'YES':
 #C(childnodesdir, ids found text file, ncbiapikey)
 
 #T(ids found text file, output directory, childnodesdir, title)
-result3 = T('Testset4/ids2.txt', 'results', 'childnodes.txt', 'Testset4')
+result3 = T('C:/Users/Dhyla/OneDrive/Documents/UROP/New_Pipeline_2023/results5/ALLAnnotated_output_2023-12-03_09-32-04/ids.txt', 'C:/Users/Dhyla/OneDrive/Documents/UROP/New_Pipeline_2023/results5/ALLAnnotated_output_2023-12-03_09-32-04', 'childnodes.txt', 'Urinary_microbiome_test_set')
 result3.Maker()
