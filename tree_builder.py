@@ -160,34 +160,41 @@ class TreeMaker:
 '#450457',
 '#440154']
                 reverseviridis = viridis[::-1]
+                colourscaledict = {}
+                for i in range(0, len(reverseviridis)):
+                        colourscaledict[str(reverseviridis[i])]= i
                 heavy = []
                 for key in iddict.keys():
                         rankdict = ncbi.get_rank([key]) 
-                        if 'species' in rankdict.values() and iddict[key] > 2.5 :
+                        if 'species' in rankdict.values() and iddict[key] > 5 :
                                 length = len(ncbi.get_lineage(key))
                                 parent = ncbi.get_lineage(key)[length - 2]
                                 if parent in heavy:
                                         heavy.remove(parent)
                                         heavy.append(key)
-                        elif 'subspecies' in rankdict.values() and iddict[key]>2:
-                                heavy.append(key)
-                        elif 'genus' in rankdict.values() and iddict[key]>4:
-                                heavy.append(key)
-                        elif 'family' in rankdict.values() and iddict[key]>5:
-                                heavy.append(key)
+                       
                         elif 'kingdom' in rankdict.values():
                                 heavy.append(key)
                         elif 'domain' in rankdict.values():
                                 heavy.append(key)
                         elif iddict[key]> 0.7*total:
                                 heavy.append(key)       
-                        
+                        else:
+                                continue
+                        '''
+                        elif 'subspecies' in rankdict.values() and iddict[key]>2:
+                                heavy.append(key)
+                        elif 'genus' in rankdict.values() and iddict[key]>4:
+                                heavy.append(key)
+                        elif 'family' in rankdict.values() and iddict[key]>5:
+                                heavy.append(key)
+                        '''
                 for key,value in iddict.items():
                         placeindex = (value / total) * 100
                         placeindex = math.ceil(placeindex)
                         colourdict[key] = reverseviridis[placeindex - 1]
 
-                delivery = [colourdict, total, heavy, iddict]
+                delivery = [colourdict, total, heavy, iddict, colourscaledict]
                 return(delivery) 
                                         
 
@@ -200,6 +207,7 @@ class TreeMaker:
                   delivery = self.colourselecter({})
                   colourdict = delivery[0]
                   tblabelled = delivery[2]
+                  indicator = delivery[4]
                   tblabellednames = ncbi.get_taxid_translator(tblabelled)
                   node.img_style["hz_line_type"] = 0
                   if node.get_children() == [] or node.name not in colourdict.keys():
@@ -211,8 +219,8 @@ class TreeMaker:
                         node.img_style["fgcolor"] = colourdict[str(node.name)]
                         node.img_style["vt_line_color"] = colourdict[str(node.name)]
                         node.img_style["hz_line_color"] = colourdict[str(node.name)]
-                        node.img_style["vt_line_width"] = 5
-                        node.img_style["hz_line_width"] = 5
+                        node.img_style["vt_line_width"] = indicator[colourdict[str(node.name)]]
+                        node.img_style["hz_line_width"] = indicator[colourdict[str(node.name)]]
                         if node.get_children == []:
                                 for i in node.get_children():
                                         if i in colourdict.keys():
@@ -253,7 +261,7 @@ class TreeMaker:
                                                       ncbi = NCBITaxa()
                                                       
                                                       tree = ncbi.get_topology(topologyfeeder, intermediate_nodes=True)
-                                                      tree.annotate_ncbi_taxa()
+                                                      #tree.annotate_ncbi_taxa()
                                                       #print(tree.get_ascii(attributes=["sci_name", "rank"]))
                                                       ts = TreeStyle()
                                                      
@@ -269,6 +277,7 @@ class TreeMaker:
                                                               val = str(round(value, 2))
                                                               table += "Taxa " + key + " " + "Weighting " + val + "\n"
                                                       print(table)
+                                                      
                                                       tree.show(tree_style=ts)
                                                       os.mkdir(self.directorypath + "/trees")
                                                       tree.write(format = 0, outfile = self.directorypath + "/trees/new_tree.nwk")
