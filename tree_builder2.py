@@ -1,4 +1,4 @@
-from ete3 import TreeStyle, RectFace, faces, Tree, NodeStyle
+from ete3 import TreeStyle, RectFace, faces, Tree, NodeStyle, TextFace
 from ete3 import NCBITaxa
 import ast
 from Bio import Phylo
@@ -22,6 +22,7 @@ class TreeMaker:
             self.cnodesdir = cnodesdir
             self.treetitle = treetitle
         def listmaker(self, listtobeprocessed, allitems):
+                #Lists all the descendants of items to be found (the txt file which is the user input) and adds them to allitems
                 ncbi = NCBITaxa()
                 for itf in listtobeprocessed:
                         for i in ncbi.get_lineage(itf):
@@ -29,9 +30,11 @@ class TreeMaker:
                 allitems = list(dict.fromkeys(allitems))
                 return allitems
         def colourselecter(self, colourdict):
+                #First find all the descendants and taxa of relevance (see listmaker above)
                 allitems = self.listmaker(self.items_to_find, [])
-                iddict=dict.fromkeys(allitems,0)
+                weighteddict=dict.fromkeys(allitems,0)
                 ncbi = NCBITaxa()
+                #cnodesdir is a txt files of all nodes and how many direct descendants they have. This turns the txt file into a dictionary. 
                 with open (self.cnodesdir ,encoding = 'utf-8') as cn:
                         text = cn.readlines()
                         childnodedict = dict()
@@ -44,21 +47,24 @@ class TreeMaker:
                                 key = item[0]
                                 value = item[1]
                                 childnodedict[key] = value
-                 # Iterate through items to find and weighing the respective values according to childnodesdict. ie: How many children does each node have?
+                 # Iterate through items to find and weight the respective values according to childnodesdict. ie: How many children does each node have?
                 for itf in self.items_to_find:
+                        # Usually lineages go from LUCA(1) --> Spec. This reverses the process. Spec --> LUCA(1)
                         reversedls = ncbi.get_lineage(itf)[::-1]
                         factor = 1
                         for index, i in enumerate(reversedls):
                                         if index == 0:
-                                                iddict[str(i)] += 1 
+                                                # Taxa found gets a score of 1. 
+                                                weighteddict[str(i)] += 1 
                                         elif str(i) in childnodedict.keys():
-
+                                                        # Subsequent items need to be weighed against how many decendents they have. The taxa found is weighted as only a fraction of the possible number of descendants. 
+                                                        # We use factor so that it exponentially weighs a smaller amount as it moves up reversedls with each division by newfactor. 
                                                         newfactor = int(childnodedict[str(i)])
                                                         factor = factor / newfactor
-                                                        iddict[str(i)] += factor
+                                                        weighteddict[str(i)] += factor
                                         else:
-                                                        iddict[str(i)] += factor 
-                total = max(iddict.values())
+                                                        weighteddict[str(i)] += factor 
+                total = max(weighteddict.values())
                 
                 viridis = ['#fde725',
 '#f8e621',
@@ -161,71 +167,77 @@ class TreeMaker:
 '#450457',
 '#440154']
                 reverseviridis = viridis[::-1]
+                #Attributes a number to each colour in the viridis scale for accessing later. 
                 colourscaledict = {}
                 for i in range(0, len(reverseviridis)):
                         colourscaledict[str(reverseviridis[i])]= i
-                heavy = []
-                for key in iddict.keys():
+                tblabelled = []
+                # Deciding which taxa should be annotated with names (and added to the tblabelled list)
+                for key in weighteddict.keys():
                         rankdict = ncbi.get_rank([key]) 
-                        notheavy = False
-                        if 'species' in rankdict.values() and iddict[key] > 1.5 :
+                        nottblabelled = False
+                        if 'species' in rankdict.values() and weighteddict[key] > 1.5 :
                                 lineage = ncbi.get_lineage(key)
                                 LEN = len(lineage)
                                 parent = lineage[LEN-1]
+                                parentweight = weighteddict[str(parent)]
                                 descendants = ncbi.get_descendant_taxa(key)
+                                descendantweight = 0
                                 for i in descendants:
-                                        if i in heavy:
-                                                notheavy == True
+                                        if i in weighteddict.keys():
+                                                descendantweight += weighteddict[str(i)]
                                         else:
                                                 continue
-                                if parent not in heavy and notheavy == False:
-                                        heavy.append(key)
-                        elif 'subspecies' in rankdict.values() and iddict[key]>1.4:
+                                if weighteddict[key]>parentweight or weighteddict[key]>descendantweight:
+                                        tblabelled.append(key)
+                        elif 'subspecies' in rankdict.values() and weighteddict[key]>1.4:
                                 lineage = ncbi.get_lineage(key)
                                 LEN = len(lineage)
                                 parent = lineage[LEN-1]
+                                parentweight = weighteddict[str(parent)]
                                 descendants = ncbi.get_descendant_taxa(key)
+                                descendantweight = 0
                                 for i in descendants:
-                                        if i in heavy:
-                                                notheavy == True
+                                        if i in weighteddict.keys():
+                                                descendantweight += weighteddict[str(i)]
                                         else:
                                                 continue
-                                if parent not in heavy and notheavy == False:
-                                        heavy.append(key)
+                                if weighteddict[key]>parentweight and weighteddict[key]>descendantweight:
+                                        tblabelled.append(key)
                                 
-                        elif 'genus' in rankdict.values() and iddict[key]>2.5:
+                        elif 'genus' in rankdict.values() and weighteddict[key]>2.5:
                                 lineage = ncbi.get_lineage(key)
                                 LEN = len(lineage)
                                 parent = lineage[LEN-1]
+                                parentweight = weighteddict[str(parent)]
                                 descendants = ncbi.get_descendant_taxa(key)
+                                descendantweight = 0
                                 for i in descendants:
-                                        if i in heavy:
-                                                notheavy == True
+                                        if i in weighteddict.keys():
+                                                descendantweight += weighteddict[str(i)]
                                         else:
                                                 continue
-                                if parent not in heavy and notheavy == False:
-                                        heavy.append(key)
-                        elif 'family' in rankdict.values() and iddict[key]>3:
+                                if weighteddict[key]>parentweight or weighteddict[key]>descendantweight:
+                                        tblabelled.append(key)
+                        elif 'family' in rankdict.values() and weighteddict[key]>3:
                                 lineage = ncbi.get_lineage(key)
                                 LEN = len(lineage)
                                 parent = lineage[LEN-1]
+                                parentweight = weighteddict[str(parent)]
                                 descendants = ncbi.get_descendant_taxa(key)
-                                print(descendants)
+                                descendantweight = 0
                                 for i in descendants:
-                                        if i in heavy:
-                                                notheavy == True
+                                        if i in weighteddict.keys():
+                                                descendantweight += weighteddict[str(i)]
                                         else:
                                                 continue
-                                if parent not in heavy and notheavy == False:
-                                        heavy.append(key)
-                        elif 'domain' in rankdict.values():
-                                heavy.append(key)
+                                if weighteddict[key]>parentweight and weighteddict[key]>descendantweight:
+                                        tblabelled.append(key)
                         elif 'kingdom' in rankdict.values():
-                                heavy.append(key)
-                        elif iddict[key]> 0.7*total:
-                                heavy.append(key)       
+                                tblabelled.append(key)
+                          
                         
-                for key,value in iddict.items():
+                for key,value in weighteddict.items():
                         placeindex = (value / total) * 100
                         placeindex = math.ceil(placeindex)
                         colourdict[key] = reverseviridis[placeindex - 1]
@@ -236,17 +248,16 @@ class TreeMaker:
                         f.write(str(colourdict))
                 with open(self.directorypath + '/txtfiles/total.txt', 'w', encoding = 'utf-8') as g:
                         g.write(str(total))
-                with open(self.directorypath + '/txtfiles/heavy.txt', 'w', encoding = 'utf-8') as h:
-                        h.write(str(heavy))
-                with open(self.directorypath + '/txtfiles/iddict.txt', 'w', encoding = 'utf-8') as i:
-                        i.write(str(iddict))
+                with open(self.directorypath + '/txtfiles/tblabelled.txt', 'w', encoding = 'utf-8') as h:
+                        h.write(str(tblabelled))
+                with open(self.directorypath + '/txtfiles/weighteddict.txt', 'w', encoding = 'utf-8') as i:
+                        i.write(str(weighteddict))
                 #Pause function to prevent the errno 13 error
                 time.sleep(2)
                 with open(self.directorypath + '/txtfiles/colourscaledict.txt', 'w', encoding = 'utf-8') as j:
                         j.write(str(colourscaledict))
                 time.sleep(2)
-                #delivery = [colourdict, total, heavy, iddict]
-                #return(delivery) 
+                
                                         
 
         def layoutfunc(self, node):
@@ -257,7 +268,7 @@ class TreeMaker:
                   node.extra_branch_line_type = 0
                   with open(self.directorypath + '/txtfiles/colourdict.txt') as f:
                                 colourdict = f.read()
-                  with open(self.directorypath + '/txtfiles/heavy.txt') as g:
+                  with open(self.directorypath + '/txtfiles/tblabelled.txt') as g:
                                 tblabelled = g.read()
                   with open(self.directorypath + '/txtfiles/colourscaledict.txt', 'r') as j:
                                 indicator = j.read()
@@ -287,8 +298,8 @@ class TreeMaker:
                         node.img_style["size"] =0
                         node.img_style["vt_line_color"] = colourdict[str(node.name)]
                         node.img_style["hz_line_color"] = colourdict[str(node.name)]
-                        node.img_style["vt_line_width"] = int(amplifier * 0.3)
-                        node.img_style["hz_line_width"] = int(amplifier * 0.3)
+                        node.img_style["vt_line_width"] = int(amplifier * 0.18)
+                        node.img_style["hz_line_width"] = int(amplifier * 0.18)
                         if node.get_children == []:
                                 for i in node.get_children():
                                         if i in colourdict.keys():
@@ -297,19 +308,18 @@ class TreeMaker:
                                                 nohorline == True
                         
                         if node.name in tblabelled:
-                                #print(tblabellednames[int(node.name)])
                                         if amplifier == 15:
                                                 textsize = 9
-                                                faces.add_face_to_node(RectFace(0.1, 0.1, fgcolor = "000000", bgcolor= "000000", label = {'text': tblabellednames[int(node.name)] , 'font': 'arial', 'fontsize' : textsize}), node, column = 1, position = "float")
+                                                faces.add_face_to_node(TextFace(tblabellednames[int(node.name)], ftype = 'arial', fsize = textsize, fgcolor = "000000", penwidth=0, fstyle= 'normal', tight_text = False, bold = False), node, column = 1, position = "float")
                                         elif amplifier == 10:
                                                 textsize = 8
-                                                faces.add_face_to_node(RectFace(0.1, 0.1, fgcolor = "000000", bgcolor= "000000", label = {'text': tblabellednames[int(node.name)] , 'font': 'arial', 'fontsize' : textsize}), node, column = 1, position = "float")
+                                                faces.add_face_to_node(TextFace(tblabellednames[int(node.name)], ftype = 'arial', fsize = textsize, fgcolor = "000000", penwidth=0, fstyle= 'normal', tight_text = False, bold = False), node, column = 3, position = "float")
                                         elif amplifier == 3:
                                                 textsize = 7
-                                                faces.add_face_to_node(RectFace(0.1, 0.1, fgcolor = "000000", bgcolor= "000000", label = {'text': tblabellednames[int(node.name)] , 'font': 'arial', 'fontsize' : textsize}), node, column = 1, position = "float")
+                                                faces.add_face_to_node(TextFace(tblabellednames[int(node.name)], ftype = 'arial', fsize = textsize, fgcolor = "000000", penwidth=0, fstyle= 'italic', tight_text = False, bold = False), node, column = 3, position = "float")
                                         else:
                                                 textsize = 0 
-                  
+                  #TextFace(tblabellednames[int(node.name)], ftype = 'arial', fgcolor = "000000", penwidth=0, fstyle= 'normal', tight_text = False, bold = False)
                   else: 
                         
                         node.img_style["size"] = 0
@@ -339,29 +349,19 @@ class TreeMaker:
                                                             else:
                                                                 id = i
                                                             topologyfeeder.append(str(id))
-                                                      #print(topologyfeeder)
                                                 
                                                       ncbi = NCBITaxa()
                                                       
                                                       tree = ncbi.get_topology(topologyfeeder, intermediate_nodes=True)
                                                       tree.annotate_ncbi_taxa()
-                                                      #print(tree.get_ascii(attributes=["sci_name", "rank"]))
                                                       ts = TreeStyle()
                                                       ts.layout_fn = self.layoutfunc
                                                       ts.show_leaf_name = False
                                                       ts.mode = "c"
                                                       ts.root_opening_factor = 0
-                                                      ts.arc_start = -180 # 0 degrees = 3 o'clock
+                                                      ts.arc_start = 0 # 0 degrees = 3 o'clock
                                                       ts.arc_span = 360
                                                       self.colourselecter({})
-                                                      '''
-                                                      alltaxaintext = self.colourselecter({})[3]
-                                                      table = ""
-                                                      for key, value in alltaxaintext.items():
-                                                              val = str(round(value, 2))
-                                                              table += "Taxa " + key + " " + "Weighting " + val + "\n"
-                                                      print(table)
-                                                      '''
                                                       tree.show(tree_style=ts)
                                                       os.mkdir(self.directorypath + "/trees")
                                                       tree.write(format = 0, outfile = self.directorypath + "/trees/new_tree.nwk")
