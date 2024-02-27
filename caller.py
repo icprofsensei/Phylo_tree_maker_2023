@@ -1,5 +1,5 @@
 import PySimpleGUI as sg
-from tree_builder2 import TreeMaker as T
+from tree_builder_not_smart import TreeMaker as T
 from childnodes import Childnodes as C
 '''
 layout2 = [[sg.Text('Type YES to produce a phylogenetic tree of entities.')],
@@ -59,5 +59,5 @@ if values2 == 'YES':
 #C(childnodesdir, ids found text file, ncbiapikey)
 
 #T(ids found text file, output directory, childnodesdir, title)
-result3 = T('C:/Users/Dhyla/OneDrive/Documents/UROP/New_Pipeline_2023/results5/ALLAnnotated_output_2023-12-03_09-32-04/ids.txt', 'C:/Users/Dhyla/OneDrive/Documents/UROP/Phylo_tree_maker_2023/results', 'childnodes.txt', 'Urinary_microbiome_test_set')
+result3 = T('microbiome_txt_files/AIRWAYids.txt', 'trees_results_NOT_SMART/AIRWAY', 'childnodes.txt', 'All_AIRWAY_test_set')
 result3.Maker()
