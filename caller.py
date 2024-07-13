@@ -59,5 +59,7 @@ if values2 == 'YES':
 #C(childnodesdir, ids found text file, ncbiapikey)
 
 #T(ids found text file, output directory, childnodesdir, title)
-result3 = T('microbiome_txt_files/AIRWAYids.txt', 'trees_results_NOT_SMART/AIRWAY', 'childnodes.txt', 'All_AIRWAY_test_set')
-result3.Maker()
+'''result3 = T('microbiome_txt_files/AIRWAYids.txt', 'trees_results_NOT_SMART/AIRWAY', 'childnodes.txt', 'All_AIRWAY_test_set')
+result3.Maker()'''
+result  = T('microbiome_txt_files/SKINids.txt', 'test_results', 'childnodes.txt', 'skinids' )
+result.Maker()

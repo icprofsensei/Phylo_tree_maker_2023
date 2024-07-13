@@ -9,6 +9,84 @@ from PIL import Image, ImageFont, ImageDraw
 from svglib.svglib import svg2rlg
 from reportlab.graphics import renderPM
 import time
+import numpy as np
+import json
+class StatisticalFunctions:
+    def pi0computer(self, p, lam, m):
+        pi_0hat = np.zeros_like(lam)
+        for k in range(len(lam)):
+            pi_0hat[k] = np.sum(p > lam[k]) / (m * (1 - lam[k]))
+        return pi_0hat
+
+    def bootsamp(self, x, ns):
+        x = np.array(x).flatten()
+        n = len(x)
+        s = np.random.rand(ns)
+        n_idx = np.digitize(s, np.linspace(0, 1, n + 1)) - 1
+        s = x[n_idx]
+        return s
+
+    def LocalMaxMin(self, vec):
+        scores = np.zeros_like(vec, dtype=int)
+        for i in range(len(vec)):
+            if i == 0 or i == len(vec) - 1:
+                scores[i] = 0
+            else:
+                if vec[i] > vec[i - 1] and vec[i] > vec[i + 1]:
+                    scores[i] = 1
+                elif vec[i] < vec[i - 1] and vec[i] < vec[i + 1]:
+                    scores[i] = -1
+        return scores
+
+    def compute_q(self, p, pi_0, m):
+        sf = np.arange(1, m + 1)
+        q = pi_0 * ((p * m) / sf)
+        for k in range(m - 2, -1, -1):
+            if q[k] > q[k + 1]:
+                q[k] = q[k + 1]
+        return q
+
+    def stfdr(self, p, nBoot=100):
+        if len(p) == 0:
+            raise ValueError("p-values array is empty.")
+        
+        np.random.seed(0)
+        d = 0.01
+        lam = np.arange(0, max(p) + d / 2, d)
+        m = len(p)
+
+        ii = np.argsort(p)
+        p = np.sort(p)
+
+        pi_0hat = self.pi0computer(p, lam, m)
+        rem = np.isnan(pi_0hat)
+        lam = lam[~rem]
+        pi_0hat = pi_0hat[~rem]
+
+        if len(lam) == 0:
+            raise ValueError("Lambda array is empty after filtering NaN values.")
+
+        mpi_0hat = np.min(pi_0hat)
+        pboot = self.bootsamp(p, m * nBoot).reshape(m, nBoot)
+
+        mse = np.zeros_like(lam)
+        for j in range(nBoot):
+            pi_0hatboot = self.pi0computer(pboot[:, j], lam, m)
+            mse += (pi_0hatboot - mpi_0hat) ** 2
+
+        lm = self.LocalMaxMin(mse)
+        lmse = lm * (np.max(mse) - mse)
+        min_lmse_idx = np.where(lmse == np.min(lmse))[0]
+
+        if len(min_lmse_idx) == 0 or len(pi_0hatboot) == 0:
+            raise ValueError("No valid local minima found in MSE.")
+
+        pi_0 = np.min(pi_0hatboot[min_lmse_idx])
+
+        q = self.compute_q(p, pi_0, m)
+        q[ii] = q
+        return q, pi_0
+
 class TreeMaker:
         def __init__(self, items_to_find, directorypath, cnodesdir, treetitle):
             #Initialise inputs
@@ -29,6 +107,14 @@ class TreeMaker:
                                 allitems.append(str(i))
                 allitems = list(dict.fromkeys(allitems))
                 return allitems
+# Colour selection algorithms
+
+        # JMP's implementation of the ST-FDR (q-value)
+
+
+
+        
+
         def colourselecter(self, colourdict):
                 #First find all the descendants and taxa of relevance (see listmaker above)
                 allitems = self.listmaker(self.items_to_find, [])
@@ -53,13 +139,76 @@ class TreeMaker:
                     weighteddict[itf] = 0
                 for itf in self.items_to_find:
                     weighteddict[itf] += 1    
-                for key, value in weighteddict.items():
+                counts = list(weighteddict.values())
+                taxa = list(weighteddict.keys())
+
+                # Remove specified taxa and synchronize lists
+                toremove = ['1', '131567']
+                filtered_taxa_counts = [(tax, count) for tax, count in zip(taxa, counts) if tax not in toremove]
+
+                taxa, counts = zip(*filtered_taxa_counts)
+                taxa = list(taxa)
+                counts = list(counts)
+                with open('NCBI_tax_dictionary11.json', encoding='utf-8') as opendic:
+                        dict_data = json.load(opendic)
+
+                idrankdict = {i['TaxID'].lstrip('NCBI:txid'): i['TaxRank'] for i in dict_data}
+
+                # Generate taxrank list
+                taxrank = [idrankdict[tax] for tax in taxa if tax in idrankdict]
+
+                # Filter counts and taxa to keep only those that have corresponding taxrank
+                filtered_data = [(tax, count) for tax, count in zip(taxa, counts) if tax in idrankdict]
+                taxa, counts = zip(*filtered_data)
+                taxa = list(taxa)
+                counts = list(counts)
+                taxrank = [idrankdict[tax] for tax in taxa]
+                assert len(counts) == len(taxa) == len(taxrank), "Counts, taxa, and taxrank lists must be the same length"
+                '''for key, value in weighteddict.items():
                         if value > 0:
                             weighteddict[key] = math.log10(value)  
                         else:
                             weighteddict[key] = value       
-                total = max(weighteddict.values())
+                total = max(weighteddict.values())'''
                 
+                mtac = [1] * len(counts)
+                mtap = mtac.copy()
+                txr = ['Species', 'Genus', 'Family', 'Order', 'Class', 'Phylum', 'Superkingdom']
+                for rnk in txr:
+                        im = np.zeros(len(taxrank), dtype=int)
+                for i, rnk2 in enumerate(taxrank):
+                        if rnk == rnk2:
+                                im[i] = 1
+
+                n = np.sum(np.array(counts) * im)
+                k = im.sum()
+                frac = 10
+                nsamp = 99999  # number of resamplings, limits the lowest pseudo p-value that can be obtained
+                R = np.zeros([nsamp, k])  # empirical estimate
+
+                for j in np.arange(0, nsamp):
+                        r = np.random.choice(np.arange(1, k + 1), int(np.ceil(n)), replace=True)
+                        u, rt = np.unique(r, return_counts=True)
+                        rt = np.divide(rt, np.sum(rt))
+                        R[j, u - 1] = rt * n
+
+                r0 = np.array(counts)[im == 1]
+                pp = np.zeros(k)  # pseudo p-values
+
+                for j in np.arange(0, k):
+                        pp[j] = (np.count_nonzero(R[:, j] > r0[j]) + 1) / (nsamp + 1)
+
+                if len(pp) > 0:
+                        # Update mtap and mtac arrays with pp and qq values
+                        indices = np.where(im == 1)[0]
+                        for idx, p_val in zip(indices, pp):
+                                mtap[idx] = p_val
+                        stat_funcs = StatisticalFunctions()
+                        qq, pi_0 = stat_funcs.stfdr(pp) 
+                        for idx, q_val in zip(indices, qq):
+                                mtac[idx] = q_val
+
+                print(mtac)
                 viridis = ['#fde725',
 '#f8e621',
 '#f1e51d',
@@ -268,19 +417,20 @@ class TreeMaker:
 
 
                 #Save important lists and dictionaries to txtfiles folder
-                os.mkdir(self.directorypath + "/txtfiles")
+                os.mkdir(self.directorypath + "/" + self.treetitle)
+                os.mkdir(self.directorypath + "/" + self.treetitle + "/txtfiles")
                 time.sleep(2)
-                with open(self.directorypath + '/txtfiles/colourdict.txt', 'w', encoding = 'utf-8') as f:
+                with open(self.directorypath + "/" + self.treetitle + '/txtfiles/colourdict.txt', 'w', encoding = 'utf-8') as f:
                         f.write(str(colourdict))
-                with open(self.directorypath + '/txtfiles/total.txt', 'w', encoding = 'utf-8') as g:
+                with open(self.directorypath + "/" + self.treetitle + '/txtfiles/total.txt', 'w', encoding = 'utf-8') as g:
                         g.write(str(total))
-                with open(self.directorypath + '/txtfiles/tblabelled.txt', 'w', encoding = 'utf-8') as h:
+                with open(self.directorypath + "/" + self.treetitle + '/txtfiles/tblabelled.txt', 'w', encoding = 'utf-8') as h:
                         h.write(str(tblabelled))
-                with open(self.directorypath + '/txtfiles/weighteddict.txt', 'w', encoding = 'utf-8') as i:
+                with open(self.directorypath + "/" + self.treetitle + '/txtfiles/weighteddict.txt', 'w', encoding = 'utf-8') as i:
                         i.write(str(weighteddict))
                 #Pause function to prevent the errno 13 error
                 time.sleep(2)
-                with open(self.directorypath + '/txtfiles/colourscaledict.txt', 'w', encoding = 'utf-8') as j:
+                with open(self.directorypath + "/" + self.treetitle + '/txtfiles/colourscaledict.txt', 'w', encoding = 'utf-8') as j:
                         j.write(str(colourscaledict))
                 time.sleep(2)
                 
@@ -294,11 +444,11 @@ class TreeMaker:
                   node.optimal_scale_level = "full"
                   node.guiding_lines_type = 0
                   node.extra_branch_line_type = 0
-                  with open(self.directorypath + '/txtfiles/colourdict.txt') as f:
+                  with open(self.directorypath + "/" + self.treetitle + '/txtfiles/colourdict.txt') as f:
                                 colourdict = f.read()
-                  with open(self.directorypath + '/txtfiles/tblabelled.txt') as g:
+                  with open(self.directorypath + "/" + self.treetitle + '/txtfiles/tblabelled.txt') as g:
                                 tblabelled = g.read()
-                  with open(self.directorypath + '/txtfiles/colourscaledict.txt', 'r') as j:
+                  with open(self.directorypath + "/" + self.treetitle + '/txtfiles/colourscaledict.txt', 'r') as j:
                                 indicator = j.read()             
                   colourdict = ast.literal_eval(colourdict)
                   tblabelled = ast.literal_eval(tblabelled)
@@ -369,6 +519,9 @@ class TreeMaker:
                                         
                   if nohorline == True:
                               node.img_style["hz_line_color"] = "#ffffff"   
+
+
+                              # Produce the tree
                             
         def Maker(self):     
                                 
@@ -397,29 +550,29 @@ class TreeMaker:
                                                       ts.arc_span = 360
                                                       self.colourselecter({})
                                                       tree.show(tree_style=ts)
-                                                      os.mkdir(self.directorypath + "/trees")
-                                                      tree.write(format = 0, outfile = self.directorypath + "/trees/new_tree.nwk")
-                                                      tree.render(self.directorypath + "/trees/img_tree.svg", w= 3600, units = 'px', tree_style = ts)
-                                                      Phylo.convert(self.directorypath + "/trees/new_tree.nwk", "newick", self.directorypath + "/trees/new_tree.xml", "nexml")
-                                                      img = svg2rlg(self.directorypath + "/trees/img_tree.svg")
-                                                      renderPM.drawToFile(img, self.directorypath + "/trees/tree.png", fmt = "PNG")
+                                                      os.mkdir(self.directorypath + "/" + self.treetitle + "/trees")
+                                                      tree.write(format = 0, outfile = self.directorypath + "/" + self.treetitle + "/trees/new_tree.nwk")
+                                                      tree.render(self.directorypath + "/" + self.treetitle + "/trees/img_tree.svg", w= 3600, units = 'px', tree_style = ts)
+                                                      Phylo.convert(self.directorypath + "/" + self.treetitle + "/trees/new_tree.nwk", "newick", self.directorypath + "/" + self.treetitle + "/trees/new_tree.xml", "nexml")
+                                                      img = svg2rlg(self.directorypath + "/" + self.treetitle + "/trees/img_tree.svg")
+                                                      renderPM.drawToFile(img, self.directorypath + "/" + self.treetitle + "/trees/tree.png", fmt = "PNG")
 
-                                                      filename = self.directorypath + "/trees/tree.png"
+                                                      filename = self.directorypath + "/" + self.treetitle + "/trees/tree.png"
                                                       with Image.open(filename) as img: 
                                                                 width, height = img.size
                                                                 img = img.resize((width * 2, height * 2 ))
-                                                                img.save(self.directorypath + "/trees/tree.png")
+                                                                img.save(self.directorypath + "/" + self.treetitle + "/trees/tree.png")
                                                                 img2 = Image.open('colourbar.png')
                                                                 img.paste(img2, (10, 10))
-                                                                img.save(self.directorypath + "/trees/tree+bar.png")
-                                                      with open(self.directorypath + '/txtfiles/total.txt') as j:
+                                                                img.save(self.directorypath + "/" + self.treetitle + "/trees/tree+bar.png")
+                                                      with open(self.directorypath + "/" + self.treetitle + '/txtfiles/total.txt') as j:
                                                                         total = j.read()
-                                                      img = Image.open(self.directorypath + "/trees/tree+bar.png")
+                                                      img = Image.open(self.directorypath + "/" + self.treetitle + "/trees/tree+bar.png")
                                                       draw = ImageDraw.Draw(img)
                                                       font = ImageFont.truetype("arial", 50)
                                                       font2 = ImageFont.truetype("arial", 70)
                                                       draw.text((600, 150), "Weighted total=  " + str(total), (0, 0, 0), font = font)
                                                       
-                                                      img.save(self.directorypath + "/trees/tree+bar.png")
+                                                      img.save(self.directorypath + "/" + self.treetitle  + "/trees/tree+bar.png")
                                                       draw.text((2500, 150), "Phylogenetic Tree based on the named entities in the folder: "  + self.treetitle, (0, 0, 0), font = font2)
-                                                      img.save(self.directorypath + "/trees/tree+bar.png")
+                                                      img.save(self.directorypath + "/" + self.treetitle  + "/trees/tree+bar.png")
