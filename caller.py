@@ -1,5 +1,5 @@
 import PySimpleGUI as sg
-from tree_builder_not_smart import TreeMaker as T
+from tree_builder_not_smart_new import TreeMaker as T
 from childnodes import Childnodes as C
 '''
 layout2 = [[sg.Text('Type YES to produce a phylogenetic tree of entities.')],
