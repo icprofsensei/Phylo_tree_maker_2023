@@ -12,81 +12,81 @@ import time
 import numpy as np
 import json
 class StatisticalFunctions:
-    def pi0computer(self, p, lam, m):
-        pi_0hat = np.zeros_like(lam)
-        for k in range(len(lam)):
-            pi_0hat[k] = np.sum(p > lam[k]) / (m * (1 - lam[k]))
-        return pi_0hat
-
-    def bootsamp(self, x, ns):
-        x = np.array(x).flatten()
-        n = len(x)
-        s = np.random.rand(ns)
-        n_idx = np.digitize(s, np.linspace(0, 1, n + 1)) - 1
-        s = x[n_idx]
-        return s
-
-    def LocalMaxMin(self, vec):
-        scores = np.zeros_like(vec, dtype=int)
-        for i in range(len(vec)):
-            if i == 0 or i == len(vec) - 1:
-                scores[i] = 0
-            else:
-                if vec[i] > vec[i - 1] and vec[i] > vec[i + 1]:
-                    scores[i] = 1
-                elif vec[i] < vec[i - 1] and vec[i] < vec[i + 1]:
-                    scores[i] = -1
-        return scores
-
-    def compute_q(self, p, pi_0, m):
-        sf = np.arange(1, m + 1)
-        q = pi_0 * ((p * m) / sf)
-        for k in range(m - 2, -1, -1):
-            if q[k] > q[k + 1]:
-                q[k] = q[k + 1]
-        return q
-
-    def stfdr(self, p, nBoot=100):
-        if len(p) == 0:
-            raise ValueError("p-values array is empty.")
-        
-        np.random.seed(0)
-        d = 0.01
-        lam = np.arange(0, max(p) + d / 2, d)
-        m = len(p)
-
-        ii = np.argsort(p)
-        p = np.sort(p)
-
-        pi_0hat = self.pi0computer(p, lam, m)
-        rem = np.isnan(pi_0hat)
-        lam = lam[~rem]
-        pi_0hat = pi_0hat[~rem]
-
-        if len(lam) == 0:
-            raise ValueError("Lambda array is empty after filtering NaN values.")
-
-        mpi_0hat = np.min(pi_0hat)
-        pboot = self.bootsamp(p, m * nBoot).reshape(m, nBoot)
-
-        mse = np.zeros_like(lam)
-        for j in range(nBoot):
-            pi_0hatboot = self.pi0computer(pboot[:, j], lam, m)
-            mse += (pi_0hatboot - mpi_0hat) ** 2
-
-        lm = self.LocalMaxMin(mse)
-        lmse = lm * (np.max(mse) - mse)
-        min_lmse_idx = np.where(lmse == np.min(lmse))[0]
-
-        if len(min_lmse_idx) == 0 or len(pi_0hatboot) == 0:
-            raise ValueError("No valid local minima found in MSE.")
-
-        pi_0 = np.min(pi_0hatboot[min_lmse_idx])
-
-        q = self.compute_q(p, pi_0, m)
-        q[ii] = q
-        return q, pi_0
-
+        @staticmethod
+        def stfdr(p, nBoot=100):
+                # set random state
+                np.random.RandomState(0)
+                
+                d = 0.01
+                lam = np.arange(0, max(p) + d/2, d)
+                m = len(p)
+                
+                ii = np.argsort(p)
+                p = np.sort(p)
+                
+                pi_0hat = StatisticalFunctions.pi0computer(p,lam,m)
+                rem = np.isnan(pi_0hat)
+                lam = lam[~rem]
+                pi_0hat = pi_0hat[~rem]
+                
+                mpi_0hat = np.min(pi_0hat)
+                pboot = StatisticalFunctions.bootsamp(p, m * nBoot).reshape(m, nBoot)
+                
+                mse = np.zeros_like(lam)
+                for j in range(nBoot):
+                        pi_0hatboot = StatisticalFunctions.pi0computer(pboot[:, j], lam, m)
+                        mse += (pi_0hatboot - mpi_0hat) ** 2
+                
+                lm = StatisticalFunctions.LocalMaxMin(mse)
+                lmse = lm * (np.max(mse) - mse)
+                min_lmse_idx = np.where(lmse == np.min(lmse))[0]
+                pi_0 = np.min(pi_0hatboot[min_lmse_idx])
+                
+                q = StatisticalFunctions.compute_q(p, pi_0, m)
+                q[ii] = q
+                return q, pi_0
+        @staticmethod
+        def pi0computer(p, lam, m):
+                pi_0hat = np.zeros_like(lam)
+                
+                for k in range(len(lam)):
+                        pi_0hat[k] = np.sum(p > lam[k]) / (m * (1 - lam[k]))
+                
+                return pi_0hat
+        @staticmethod
+        def bootsamp(x, ns):
+                x = np.array(x).flatten()
+                n = len(x)
+                s = np.random.rand(ns)
+                n_idx = np.digitize(s, np.linspace(0, 1, n+1)) - 1
+                s = x[n_idx]
+                return s
+        @staticmethod
+        def LocalMaxMin(vec):
+                        scores = np.zeros_like(vec, dtype=int)
+                        for i in range(len(vec)):
+                                if i == 0:
+                                # First element
+                                        scores[i] = 0 
+                                elif i == len(vec) - 1:
+                                # Last element
+                                        scores[i] = 0 
+                                else:
+                                # All other elements
+                                        scores[i] = 0
+                                        if vec[i] > vec[i-1] and vec[i] > vec[i+1]:
+                                                scores[i] = 1
+                                        elif vec[i] < vec[i-1] and vec[i] < vec[i+1]:
+                                                scores[i] = -1
+                        return scores
+        @staticmethod
+        def compute_q(p, pi_0, m):
+                sf = np.arange(1, m+1)
+                q = pi_0 * ((p * m) / sf)
+                for k in range(m-2, -1, -1):
+                        if q[k] > q[k+1]:
+                                q[k] = q[k+1]
+                return q
 class TreeMaker:
         def __init__(self, items_to_find, directorypath, cnodesdir, treetitle):
             #Initialise inputs
@@ -102,221 +102,66 @@ class TreeMaker:
         def listmaker(self, listtobeprocessed, allitems):
                 #Lists all the descendants of items to be found (the txt file which is the user input) and adds them to allitems
                 ncbi = NCBITaxa()
+                keys = []
                 for itf in listtobeprocessed:
                         for i in ncbi.get_lineage(itf):
-                                allitems.append(str(i))
-                allitems = list(dict.fromkeys(allitems))
+                                keys.append(str(i))
+                allitems = dict.fromkeys(keys, 0)
+                newproc = []
+                for ltbp in listtobeprocessed:
+                        newid = ncbi.get_lineage(ltbp)[::-1][0]
+                        newproc.append(newid)
+                for np in newproc:
+                        if np in allitems.keys():
+                                allitems[np] +=1
                 return allitems
-# Colour selection algorithms
 
         # JMP's implementation of the ST-FDR (q-value)
-
-
-
-        
-
         def colourselecter(self, colourdict):
-                #First find all the descendants and taxa of relevance (see listmaker above)
-                allitems = self.listmaker(self.items_to_find, [])
-                weighteddict=dict.fromkeys(allitems,0)
+                allitems = self.listmaker(self.items_to_find, {})
                 ncbi = NCBITaxa()
-                #cnodesdir is a txt files of all nodes and how many direct descendants they have. This turns the txt file into a dictionary. 
-                with open (self.cnodesdir ,encoding = 'utf-8') as cn:
-                        text = cn.readlines()
-                        childnodedict = dict()
-                        for i in text:
-                                item = i.split(" ")
-                                if item[1] == "\n":
-                                        item[1] = 1
-                                else:
-                                        item[1] = item[1].strip("\n")
-                                key = item[0]
-                                value = item[1]
-                                childnodedict[key] = value
-                 # Iterate through items to find and count.
-                itfset = set(self.items_to_find)
-                for itf in itfset:
-                    weighteddict[itf] = 0
-                for itf in self.items_to_find:
-                    weighteddict[itf] += 1    
-                counts = list(weighteddict.values())
-                taxa = list(weighteddict.keys())
-
-                # Remove specified taxa and synchronize lists
-                toremove = ['']
-                filtered_taxa_counts = [(tax, count) for tax, count in zip(taxa, counts) if tax not in toremove]
-
-                taxa, counts = zip(*filtered_taxa_counts)
-                print(taxa)
-                with open('NCBI_tax_dictionary11.json', encoding='utf-8') as opendic:
-                        dict_data = json.load(opendic)
-
-                idrankdict = {i['TaxID'].lstrip('NCBI:txid'): i['TaxRank'] for i in dict_data}
-
-                # Generate taxrank list
-
-                # Filter counts and taxa to keep only those that have corresponding taxrank
-                filtered_data = [(tax, count)  if tax in idrankdict else (taxa, 0) for tax, count in zip(taxa, counts)]
-                taxa, counts = zip(*filtered_data)
+                counts = np.array(list(allitems.values()))
+                taxa = list(allitems.keys())
                 taxrank = []
-                #print(idrankdict.keys())
-                for tax in taxa:
-                        if tax in list(idrankdict.keys()): 
-                                item = idrankdict[tax]
-                        else:
-                                item = 'na'
-                        taxrank.append(item)
+                for i in taxa: 
+                        rank = ncbi.get_rank([i])[int(i)]
+                        taxrank.append(rank)
          
                 assert len(counts) == len(taxa) == len(taxrank), "Counts, taxa, and taxrank lists must be the same length"
-                '''for key, value in weighteddict.items():
-                        if value > 0:
-                            weighteddict[key] = math.log10(value)  
-                        else:
-                            weighteddict[key] = value       
-                total = max(weighteddict.values())'''
                 
-                mtac = [1] * len(counts)
-                mtap = mtac.copy()
+                mtac = counts * 0 + 1
+                mtap = mtac
                 rnkdict = {}
-                txr = ['species', 'genus', 'subfamily', 'family','suborder', 'order', 'subclass', 'class', 'subphylum', 'phylum', 'subkingdom', 'superkingdom', 'na']
+                txr = ['species', 'genus', 'subfamily', 'family','suborder', 'order', 'subclass', 'class', 'subphylum', 'phylum', 'subkingdom', 'superkingdom']
                 for rnk in txr:
-                       # if rnk == 'species':
                                 im = np.zeros(len(taxrank), dtype=int)
                                 for i, rnk2 in enumerate(taxrank):
                                         if rnk == rnk2:
                                                 im[i] = 1
-                                n = np.sum(np.array(counts) * im)
+                                n = np.sum(counts * im)
                                 k = im.sum()
                                 frac = 10
-                                nsamp = 99999  # number of resamplings, limits the lowest pseudo p-value that can be obtained
-                                R = np.zeros([nsamp, k])  # empirical estimate
-
-                                for j in np.arange(0, nsamp):
-                                        r = np.random.choice(np.arange(1, k + 1), int(np.ceil(n)), replace=True)
+                                nsamp = 99999 # number of resamplings, limits the lowest pseudo p-value that can be obtained
+                                R = np.zeros([nsamp, k]) # empirical estimate
+                                for j in np.arange(0,nsamp):
+                                        r = np.random.choice(np.arange(1, k+1), int(np.ceil(n)), replace=True)
                                         u, rt = np.unique(r, return_counts=True)
                                         rt = np.divide(rt, np.sum(rt))
                                         R[j, u - 1] = rt * n
-
-                                r0 = np.array(counts)[im == 1]
-                                pp = np.zeros(k)  # pseudo p-values
-                                for j in np.arange(0, k):
+                                r0 = counts[im == 1]
+                                pp = np.zeros(k) # pseudo p-values
+                                for j in np.arange(0,k):
                                         pp[j] = (np.count_nonzero(R[:, j] > r0[j]) + 1) / (nsamp + 1)
-
-                                if len(pp) > 0:
-                                        # Update mtap and mtac arrays with pp and qq values
-                                        indices = np.where(im == 1)[0]
-                                        for idx, p_val in zip(indices, pp):
-                                                mtap[idx] = p_val
-                                        stat_funcs = StatisticalFunctions()
-                                        qq, pi_0 = stat_funcs.stfdr(pp) 
-                                        for idx, q_val in zip(indices, qq):
-                                                mtac[idx] = q_val
-
+                                mtap[im == 1] = pp # multiple testikng adjusted p-values
+                                qq = StatisticalFunctions.stfdr(pp)
+                                mtac[im == 1] = qq[0] 
                                 rnkdict[rnk]= mtac
                 rnkdictvals = rnkdict.values()
                 result = [min(item) for item in zip(*rnkdictvals)]
                 weighteddict2 = {k:v for k,v in zip(list(taxa), result)}
+                print(weighteddict2)
                 total = max(result)
-                viridis = ['#fde725',
-'#f8e621',
-'#f1e51d',
-'#ece51b',
-'#e5e419',
-'#dfe318',
-'#d8e219',
-'#d0e11c',
-'#cae11f',
-'#c2df23',
-'#bddf26',
-'#b5de2b',
-'#addc30',
-'#a8db34',
-'#a0da39',
-'#9bd93c',
-'#93d741',
-'#8ed645',
-'#86d549',
-'#7fd34e',
-'#7ad151',
-'#73d056',
-'#6ece58',
-'#67cc5c',
-'#60ca60',
-'#5cc863',
-'#56c667',
-'#52c569',
-'#4cc26c',
-'#48c16e',
-'#42be71',
-'#3dbc74',
-'#3aba76',
-'#35b779',
-'#32b67a',
-'#2eb37c',
-'#2ab07f',
-'#28ae80',
-'#25ac82',
-'#24aa83',
-'#22a785',
-'#20a486',
-'#1fa287',
-'#1fa088',
-'#1f9e89',
-'#1e9b8a',
-'#1f998a',
-'#1f968b',
-'#20938c',
-'#20928c',
-'#218f8d',
-'#228d8d',
-'#238a8d',
-'#24878e',
-'#25858e',
-'#26828e',
-'#26818e',
-'#277e8e',
-'#287c8e',
-'#29798e',
-'#2a768e',
-'#2b748e',
-'#2c718e',
-'#2d708e',
-'#2e6d8e',
-'#306a8e',
-'#31688e',
-'#32658e',
-'#33638d',
-'#34608d',
-'#365d8d',
-'#375b8d',
-'#38588c',
-'#39558c',
-'#3b528b',
-'#3c508b',
-'#3d4d8a',
-'#3e4989',
-'#3f4788',
-'#414487',
-'#424186',
-'#433e85',
-'#443a83',
-'#453882',
-'#463480',
-'#46327e',
-'#472e7c',
-'#472c7a',
-'#482878',
-'#482475',
-'#482173',
-'#481d6f',
-'#481b6d',
-'#481769',
-'#471365',
-'#471063',
-'#460b5e',
-'#46085c',
-'#450457',
-'#440154']
+                viridis = ['#fde725','#f8e621','#f1e51d','#ece51b','#e5e419','#dfe318','#d8e219','#d0e11c','#cae11f','#c2df23','#bddf26','#b5de2b','#addc30','#a8db34','#a0da39','#9bd93c','#93d741','#8ed645','#86d549','#7fd34e','#7ad151','#73d056','#6ece58','#67cc5c','#60ca60','#5cc863','#56c667','#52c569','#4cc26c','#48c16e','#42be71','#3dbc74','#3aba76','#35b779','#32b67a','#2eb37c','#2ab07f','#28ae80','#25ac82','#24aa83','#22a785','#20a486','#1fa287','#1fa088','#1f9e89','#1e9b8a','#1f998a','#1f968b','#20938c','#20928c','#218f8d','#228d8d','#238a8d','#24878e','#25858e','#26828e','#26818e','#277e8e','#287c8e','#29798e','#2a768e','#2b748e','#2c718e','#2d708e','#2e6d8e','#306a8e','#31688e','#32658e','#33638d','#34608d','#365d8d','#375b8d','#38588c','#39558c','#3b528b','#3c508b','#3d4d8a','#3e4989','#3f4788','#414487','#424186','#433e85','#443a83','#453882','#463480','#46327e','#472e7c','#472c7a','#482878','#482475','#482173','#481d6f','#481b6d','#481769','#471365','#471063','#460b5e','#46085c','#450457','#440154']
                 reverseviridis = viridis[::-1]
                 #Attributes a number to each colour in the viridis scale for accessing later. 
                 colourscaledict = {}
@@ -417,7 +262,7 @@ class TreeMaker:
                         if len(sibs) >1:
                                 sibweights = []
                                 for s in sibs:
-                                        sibweights.append(weighteddict[s])
+                                        sibweights.append(weighteddict2[s])
                                 heaviest = max(sibweights)
                         if weighteddict2[tbl] < heaviest:
                                 tblabelled.remove(tbl)
