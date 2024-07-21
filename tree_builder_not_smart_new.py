@@ -110,7 +110,7 @@ class TreeMaker:
                 newproc = []
                 for ltbp in listtobeprocessed:
                         newid = ncbi.get_lineage(ltbp)[::-1][0]
-                        newproc.append(newid)
+                        newproc.append(str(newid))
                 for np in newproc:
                         if np in allitems.keys():
                                 allitems[np] +=1
@@ -120,7 +120,8 @@ class TreeMaker:
         def colourselecter(self, colourdict):
                 allitems = self.listmaker(self.items_to_find, {})
                 ncbi = NCBITaxa()
-                counts = np.array(list(allitems.values()))
+                counts = list(allitems.values())
+                counts = np.array(counts)
                 taxa = list(allitems.keys())
                 taxrank = []
                 for i in taxa: 
@@ -128,21 +129,22 @@ class TreeMaker:
                         taxrank.append(rank)
          
                 assert len(counts) == len(taxa) == len(taxrank), "Counts, taxa, and taxrank lists must be the same length"
-                
-                mtac = counts * 0 + 1
-                mtap = mtac
+                im = np.zeros(len(taxrank), dtype=int)
+                mtap = np.zeros_like(im, dtype=float)  # Adjusted for possible shape differences
+                mtac = np.zeros_like(im, dtype=float) 
                 rnkdict = {}
                 txr = ['species', 'genus', 'subfamily', 'family','suborder', 'order', 'subclass', 'class', 'subphylum', 'phylum', 'subkingdom', 'superkingdom']
                 for rnk in txr:
-                                im = np.zeros(len(taxrank), dtype=int)
+                                
                                 for i, rnk2 in enumerate(taxrank):
                                         if rnk == rnk2:
                                                 im[i] = 1
-                                n = np.sum(counts * im)
+                                counts_im = counts * im  # Element-wise multiplication
+                                n = np.sum(counts_im)
                                 k = im.sum()
-                                frac = 10
                                 nsamp = 99999 # number of resamplings, limits the lowest pseudo p-value that can be obtained
                                 R = np.zeros([nsamp, k]) # empirical estimate
+                                
                                 for j in np.arange(0,nsamp):
                                         r = np.random.choice(np.arange(1, k+1), int(np.ceil(n)), replace=True)
                                         u, rt = np.unique(r, return_counts=True)
@@ -154,13 +156,11 @@ class TreeMaker:
                                         pp[j] = (np.count_nonzero(R[:, j] > r0[j]) + 1) / (nsamp + 1)
                                 mtap[im == 1] = pp # multiple testikng adjusted p-values
                                 qq = StatisticalFunctions.stfdr(pp)
-                                mtac[im == 1] = qq[0] 
-                                rnkdict[rnk]= mtac
-                rnkdictvals = rnkdict.values()
-                result = [min(item) for item in zip(*rnkdictvals)]
-                weighteddict2 = {k:v for k,v in zip(list(taxa), result)}
+                                mtac[im == 1] = qq[0] # multiple testing adjusted q-values
+                print(mtac)
+                weighteddict2 = {k:v for k,v in zip(list(taxa), mtac)}
                 print(weighteddict2)
-                total = max(result)
+                total = max(mtac)
                 viridis = ['#fde725','#f8e621','#f1e51d','#ece51b','#e5e419','#dfe318','#d8e219','#d0e11c','#cae11f','#c2df23','#bddf26','#b5de2b','#addc30','#a8db34','#a0da39','#9bd93c','#93d741','#8ed645','#86d549','#7fd34e','#7ad151','#73d056','#6ece58','#67cc5c','#60ca60','#5cc863','#56c667','#52c569','#4cc26c','#48c16e','#42be71','#3dbc74','#3aba76','#35b779','#32b67a','#2eb37c','#2ab07f','#28ae80','#25ac82','#24aa83','#22a785','#20a486','#1fa287','#1fa088','#1f9e89','#1e9b8a','#1f998a','#1f968b','#20938c','#20928c','#218f8d','#228d8d','#238a8d','#24878e','#25858e','#26828e','#26818e','#277e8e','#287c8e','#29798e','#2a768e','#2b748e','#2c718e','#2d708e','#2e6d8e','#306a8e','#31688e','#32658e','#33638d','#34608d','#365d8d','#375b8d','#38588c','#39558c','#3b528b','#3c508b','#3d4d8a','#3e4989','#3f4788','#414487','#424186','#433e85','#443a83','#453882','#463480','#46327e','#472e7c','#472c7a','#482878','#482475','#482173','#481d6f','#481b6d','#481769','#471365','#471063','#460b5e','#46085c','#450457','#440154']
                 reverseviridis = viridis[::-1]
                 #Attributes a number to each colour in the viridis scale for accessing later. 
