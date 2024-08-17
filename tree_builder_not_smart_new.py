@@ -121,46 +121,48 @@ class TreeMaker:
                 allitems = self.listmaker(self.items_to_find, {})
                 ncbi = NCBITaxa()
                 counts = list(allitems.values())
-                counts = np.array(counts)
+                print(counts)
+                counts = np.array(counts).T
                 taxa = list(allitems.keys())
                 taxrank = []
                 for i in taxa: 
                         rank = ncbi.get_rank([i])[int(i)]
                         taxrank.append(rank)
-         
-                assert len(counts) == len(taxa) == len(taxrank), "Counts, taxa, and taxrank lists must be the same length"
+                
+                print(taxrank)
                 im = np.zeros(len(taxrank), dtype=int)
                 mtap = np.zeros_like(im, dtype=float)  # Adjusted for possible shape differences
                 mtac = np.zeros_like(im, dtype=float) 
                 rnkdict = {}
-                txr = ['species', 'genus', 'subfamily', 'family','suborder', 'order', 'subclass', 'class', 'subphylum', 'phylum', 'subkingdom', 'superkingdom']
+                txr = list(set(taxrank))
+                print(txr)
                 for rnk in txr:
-                                
-                                for i, rnk2 in enumerate(taxrank):
-                                        if rnk == rnk2:
-                                                im[i] = 1
-                                counts_im = counts * im  # Element-wise multiplication
-                                n = np.sum(counts_im)
-                                k = im.sum()
-                                nsamp = 99999 # number of resamplings, limits the lowest pseudo p-value that can be obtained
-                                R = np.zeros([nsamp, k]) # empirical estimate
-                                
-                                for j in np.arange(0,nsamp):
-                                        r = np.random.choice(np.arange(1, k+1), int(np.ceil(n)), replace=True)
-                                        u, rt = np.unique(r, return_counts=True)
-                                        rt = np.divide(rt, np.sum(rt))
-                                        R[j, u - 1] = rt * n
-                                r0 = counts[im == 1]
-                                pp = np.zeros(k) # pseudo p-values
-                                for j in np.arange(0,k):
-                                        pp[j] = (np.count_nonzero(R[:, j] > r0[j]) + 1) / (nsamp + 1)
-                                mtap[im == 1] = pp # multiple testikng adjusted p-values
-                                qq = StatisticalFunctions.stfdr(pp)
-                                mtac[im == 1] = qq[0] # multiple testing adjusted q-values
-                print(mtac)
-                weighteddict2 = {k:v for k,v in zip(list(taxa), mtac)}
+                        im = (np.array(taxrank) == rnk).astype(int)
+                        counts_im = counts * im  # Element-wise multiplication
+                        n = np.sum(counts_im)
+                        k = im.sum()
+                        if k == 0:
+                                continue  # Skip if no elements match the current rank
+
+                        nsamp = 99999  # number of resamplings
+                        R = np.zeros((nsamp, k))  # empirical estimate
+
+                        # Generate random samples more efficiently
+                        rand_choices = np.random.randint(0, k, (nsamp, int(np.ceil(n))))
+                        np.add.at(R, (np.arange(nsamp)[:, None], rand_choices), 1)
+                        R /= R.sum(axis=1, keepdims=True)  # Normalize rows
+                        R *= n
+
+                        r0 = counts[im == 1]
+                        pp = (np.count_nonzero(R > r0, axis=0) + 1) / (nsamp + 1)
+
+                        mtap[im == 1] = pp  # multiple testing adjusted p-values
+                        qq = StatisticalFunctions.stfdr(pp)
+                        mtac[im == 1] = qq[0]  # multiple testing adjusted q-values
+                mtac2 = -np.log10(mtac)
+                weighteddict2 = {k:v for k,v in zip(list(taxa), mtac2)}
                 print(weighteddict2)
-                total = max(mtac)
+                total = max(mtac2)
                 viridis = ['#fde725','#f8e621','#f1e51d','#ece51b','#e5e419','#dfe318','#d8e219','#d0e11c','#cae11f','#c2df23','#bddf26','#b5de2b','#addc30','#a8db34','#a0da39','#9bd93c','#93d741','#8ed645','#86d549','#7fd34e','#7ad151','#73d056','#6ece58','#67cc5c','#60ca60','#5cc863','#56c667','#52c569','#4cc26c','#48c16e','#42be71','#3dbc74','#3aba76','#35b779','#32b67a','#2eb37c','#2ab07f','#28ae80','#25ac82','#24aa83','#22a785','#20a486','#1fa287','#1fa088','#1f9e89','#1e9b8a','#1f998a','#1f968b','#20938c','#20928c','#218f8d','#228d8d','#238a8d','#24878e','#25858e','#26828e','#26818e','#277e8e','#287c8e','#29798e','#2a768e','#2b748e','#2c718e','#2d708e','#2e6d8e','#306a8e','#31688e','#32658e','#33638d','#34608d','#365d8d','#375b8d','#38588c','#39558c','#3b528b','#3c508b','#3d4d8a','#3e4989','#3f4788','#414487','#424186','#433e85','#443a83','#453882','#463480','#46327e','#472e7c','#472c7a','#482878','#482475','#482173','#481d6f','#481b6d','#481769','#471365','#471063','#460b5e','#46085c','#450457','#440154']
                 reverseviridis = viridis[::-1]
                 #Attributes a number to each colour in the viridis scale for accessing later. 
@@ -171,10 +173,11 @@ class TreeMaker:
                 # Deciding which taxa should be annotated with names (and added to the tblabelled list)
                 for key in weighteddict2.keys():
                         rankdict = ncbi.get_rank(key) 
-                        nottblabelled = False
-                        if 'subspecies' in rankdict.values() and weighteddict2[key]*100/total>10:
+                        if 'subspecies' in rankdict.values() or 'species' in rankdict.values() or 'genus' in rankdict.values() or 'family' in rankdict.values():
+
                                 lineage = ncbi.get_lineage(key)
                                 LEN = len(lineage)
+                                nottblabelled = False
                                 parent = lineage[LEN-1]
                                 parentweight = weighteddict2[str(parent)]
                                 descendants = ncbi.get_descendant_taxa(key)
@@ -184,51 +187,18 @@ class TreeMaker:
                                                 descendantweight += weighteddict2[str(i)]
                                         else:
                                                 continue
-                                if weighteddict2[key]>parentweight and weighteddict2[key]>descendantweight:
-                                        tblabelled.append(key)
-                        elif 'species' in rankdict.values() and weighteddict2[key]*100/total >40 :
-                                lineage = ncbi.get_lineage(key)
-                                LEN = len(lineage)
-                                parent = lineage[LEN-1]
-                                parentweight = weighteddict2[str(parent)]
-                                descendants = ncbi.get_descendant_taxa(key)
-                                descendantweight = 0
-                                for i in descendants:
-                                        if i in weighteddict2.keys():
-                                                descendantweight += weighteddict2[str(i)]
-                                        else:
-                                                continue
-                                if weighteddict2[key]>parentweight and weighteddict2[key]>descendantweight:
-                                        tblabelled.append(key)
-                                
-                        elif 'genus' in rankdict.values() and weighteddict2[key]*100/total>50:
-                                lineage = ncbi.get_lineage(key)
-                                LEN = len(lineage)
-                                parent = lineage[LEN-1]
-                                parentweight = weighteddict2[str(parent)]
-                                descendants = ncbi.get_descendant_taxa(key)
-                                descendantweight = 0
-                                for i in descendants:
-                                        if i in weighteddict2.keys():
-                                                descendantweight += weighteddict2[str(i)]
-                                        else:
-                                                continue
-                                if weighteddict2[key]>parentweight or weighteddict2[key]>descendantweight:
-                                        tblabelled.append(key)
-                        elif 'family' in rankdict.values() and weighteddict2[key]*100/total>60:
-                                lineage = ncbi.get_lineage(key)
-                                LEN = len(lineage)
-                                parent = lineage[LEN-1]
-                                parentweight = weighteddict2[str(parent)]
-                                descendants = ncbi.get_descendant_taxa(key)
-                                descendantweight = 0
-                                for i in descendants:
-                                        if i in weighteddict2.keys():
-                                                descendantweight += weighteddict2[str(i)]
-                                        else:
-                                                continue
-                                if weighteddict2[key]>parentweight and weighteddict2[key]>descendantweight:
-                                        tblabelled.append(key)
+                                if 'subspecies' in rankdict.values() and weighteddict2[key]*100/total>20:
+                                        if weighteddict2[key]>parentweight and weighteddict2[key]>descendantweight:
+                                                tblabelled.append(key)
+                                elif 'species' in rankdict.values() and weighteddict2[key]*100/total >60 :
+                                        if weighteddict2[key]>parentweight and weighteddict2[key]>descendantweight:
+                                                tblabelled.append(key)
+                                elif 'genus' in rankdict.values() and weighteddict2[key]*100/total>80:
+                                        if weighteddict2[key]>parentweight or weighteddict2[key]>descendantweight:
+                                                tblabelled.append(key)
+                                elif 'family' in rankdict.values() and weighteddict2[key]*100/total>100:
+                                        if weighteddict2[key]>parentweight and weighteddict2[key]>descendantweight:
+                                                tblabelled.append(key)
                         
                           
                         
@@ -243,32 +213,20 @@ class TreeMaker:
                 for tbl in tblabelled:
                         lineagetbl = ncbi.get_lineage(tbl)
                         penultimate.append(lineagetbl[len(lineagetbl)-2])
-                parents = set(penultimate)
-                parents = list(parents)
+                parents = list(set(penultimate))
                 siblings = {}
                 for p in parents:
-                        sib = []
+                        sib = {}
                         for tbl in tblabelled:
                                 lineagetbl = ncbi.get_lineage(tbl)
                                 parent = (lineagetbl[len(lineagetbl)-2])
                                 if parent == p:
-                                        sib.append(tbl)
+                                        sib[tbl] = weighteddict2[tbl]
                         siblings[p] = sib
-                for tbl in tblabelled:
-                        lineagetbl = ncbi.get_lineage(tbl)
-                        parent = (lineagetbl[len(lineagetbl)-2])
-                        sibs = siblings[parent]
-                        heaviest = 0
-                        if len(sibs) >1:
-                                sibweights = []
-                                for s in sibs:
-                                        sibweights.append(weighteddict2[s])
-                                heaviest = max(sibweights)
-                        if weighteddict2[tbl] < heaviest:
-                                tblabelled.remove(tbl)
-
-
-
+                tblabelled2 = []
+                for key, value in siblings.items():
+                        tblabelled2.append(max(value, key = value.get))
+                tblabelled2 = list(set(tblabelled2))
                 #Save important lists and dictionaries to txtfiles folder
                 os.mkdir(self.directorypath + "/" + self.treetitle)
                 os.mkdir(self.directorypath + "/" + self.treetitle + "/txtfiles")
@@ -277,8 +235,8 @@ class TreeMaker:
                         f.write(str(colourdict))
                 with open(self.directorypath + "/" + self.treetitle + '/txtfiles/total.txt', 'w', encoding = 'utf-8') as g:
                         g.write(str(total))
-                with open(self.directorypath + "/" + self.treetitle + '/txtfiles/tblabelled.txt', 'w', encoding = 'utf-8') as h:
-                        h.write(str(tblabelled))
+                with open(self.directorypath + "/" + self.treetitle + '/txtfiles/tblabelled2.txt', 'w', encoding = 'utf-8') as h:
+                        h.write(str(tblabelled2))
                 with open(self.directorypath + "/" + self.treetitle + '/txtfiles/weighteddict2.txt', 'w', encoding = 'utf-8') as i:
                         i.write(str(weighteddict2))
                 #Pause function to prevent the errno 13 error
@@ -299,7 +257,7 @@ class TreeMaker:
                   node.extra_branch_line_type = 0
                   with open(self.directorypath + "/" + self.treetitle + '/txtfiles/colourdict.txt') as f:
                                 colourdict = f.read()
-                  with open(self.directorypath + "/" + self.treetitle + '/txtfiles/tblabelled.txt') as g:
+                  with open(self.directorypath + "/" + self.treetitle + '/txtfiles/tblabelled2.txt') as g:
                                 tblabelled = g.read()
                   with open(self.directorypath + "/" + self.treetitle + '/txtfiles/colourscaledict.txt', 'r') as j:
                                 indicator = j.read()             
