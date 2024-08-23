@@ -170,9 +170,12 @@ class TreeMaker:
                 for i in range(0, len(reverseviridis)):
                         colourscaledict[str(reverseviridis[i])]= i
                 tblabelled = []
+                sigdict = {}
                 # Deciding which taxa should be annotated with names (and added to the tblabelled list)
                 for key in weighteddict2.keys():
                         rankdict = ncbi.get_rank(key) 
+                        if weighteddict2[key] > -np.log10(0.05):
+                                sigdict[key] = weighteddict2[key]
                         if 'subspecies' in rankdict.values() or 'species' in rankdict.values() or 'genus' in rankdict.values() or 'family' in rankdict.values():
 
                                 lineage = ncbi.get_lineage(key)
@@ -196,7 +199,7 @@ class TreeMaker:
                                 elif 'genus' in rankdict.values() and weighteddict2[key]*100/total>80:
                                         if weighteddict2[key]>parentweight or weighteddict2[key]>descendantweight:
                                                 tblabelled.append(key)
-                                elif 'family' in rankdict.values() and weighteddict2[key]*100/total>100:
+                                elif 'family' in rankdict.values() and weighteddict2[key]*100/total>90:
                                         if weighteddict2[key]>parentweight and weighteddict2[key]>descendantweight:
                                                 tblabelled.append(key)
                         
@@ -239,6 +242,8 @@ class TreeMaker:
                         h.write(str(tblabelled2))
                 with open(self.directorypath + "/" + self.treetitle + '/txtfiles/weighteddict2.txt', 'w', encoding = 'utf-8') as i:
                         i.write(str(weighteddict2))
+                with open(self.directorypath + "/" + self.treetitle + '/txtfiles/sigtaxa.txt', 'w', encoding = 'utf-8') as j:
+                        j.write(str(sigdict))
                 #Pause function to prevent the errno 13 error
                 time.sleep(2)
                 with open(self.directorypath + "/" + self.treetitle + '/txtfiles/colourscaledict.txt', 'w', encoding = 'utf-8') as j:
